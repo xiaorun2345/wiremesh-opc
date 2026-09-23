@@ -1,0 +1,16 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*", "*/migrations/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 65
+# 注：Agent execute 方法依赖外部服务（MinIO/MinerU/ezdxf/Claude API），
+# 需要集成测试环境才能覆盖，单元测试阶段目标 65%

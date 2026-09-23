@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+dist
+build
+.eggs
+
+# 虚拟环境
+.venv
+venv
+env
+
+# 测试
+tests/
+.pytest_cache
+.coverage
+htmlcov
+
+# 文档
+docs/
+
+# 本地开发
+.env
+*.env.local
+uploads/
+*.log
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# 数据
+data/standards/
+jia/

@@ -1,0 +1,44 @@
+import client from './client'
+
+export const opcApi = {
+  analytics: () => client.get('/opc/analytics'),
+
+  listCustomers: () => client.get('/opc/customers'),
+  createCustomer: (data: Record<string, unknown>) => client.post('/opc/customers', data),
+  updateCustomer: (id: string, data: Record<string, unknown>) => client.patch(`/opc/customers/${id}`, data),
+  deleteCustomer: (id: string) => client.delete(`/opc/customers/${id}`),
+
+  listFactories: () => client.get('/opc/factories'),
+  createFactory: (data: Record<string, unknown>) => client.post('/opc/factories', data),
+  updateFactory: (id: string, data: Record<string, unknown>) => client.patch(`/opc/factories/${id}`, data),
+  deleteFactory: (id: string) => client.delete(`/opc/factories/${id}`),
+
+  listInquiries: () => client.get('/opc/inquiries'),
+  createInquiry: (data: Record<string, unknown>) => client.post('/opc/inquiries', data),
+  updateInquiry: (id: string, data: Record<string, unknown>) => client.patch(`/opc/inquiries/${id}`, data),
+  deleteInquiry: (id: string) => client.delete(`/opc/inquiries/${id}`),
+
+  listKnowledge: () => client.get('/opc/knowledge'),
+  createKnowledge: (data: Record<string, unknown>) => client.post('/opc/knowledge', data),
+  updateKnowledge: (id: string, data: Record<string, unknown>) => client.patch(`/opc/knowledge/${id}`, data),
+  deleteKnowledge: (id: string) => client.delete(`/opc/knowledge/${id}`),
+
+  listOrders: () => client.get('/opc/orders'),
+  createOrder: (data: Record<string, unknown>) => client.post('/opc/orders', data),
+  updateOrder: (id: string, data: Record<string, unknown>) => client.patch(`/opc/orders/${id}`, data),
+  deleteOrder: (id: string) => client.delete(`/opc/orders/${id}`),
+
+  listPrices: () => client.get('/automation/prices'),
+  createPrice: (data: Record<string, unknown>) => client.post('/automation/prices', data),
+  deactivatePrice: (id: string) => client.delete(`/automation/prices/${id}`),
+  listFollowups: (customerId: string) => client.get(`/automation/followups/${customerId}`),
+  createFollowup: (data: Record<string, unknown>) => client.post('/automation/followups', data),
+  completeFollowup: (id: string) => client.post(`/automation/followups/${id}/complete`),
+  listOrderEvents: (orderId: string) => client.get(`/automation/orders/${orderId}/events`),
+  createOrderEvent: (orderId: string, data: Record<string, unknown>) => client.post(`/automation/orders/${orderId}/events`, data),
+  listOrderAttachments: (orderId: string) => client.get(`/automation/orders/${orderId}/attachments`),
+  uploadOrderAttachment: (orderId: string, data: FormData) => client.post(`/automation/orders/${orderId}/attachments`, data),
+  indexKnowledge: (id: string) => client.post(`/automation/knowledge/${id}/index`),
+  searchKnowledge: (q: string) => client.get('/automation/knowledge/search', { params: { q } }),
+  audit: () => client.get('/automation/audit'),
+}

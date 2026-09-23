@@ -1,0 +1,27 @@
+html, body, #app {
+  min-height: 100%;
+}
+
+html {
+  background: #f3f6fa;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: #17243a;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#app {
+  width: 100%;
+}

@@ -1,0 +1,186 @@
+version: "3.9"
+
+services:
+
+  # ── 应用主服务 ─────────────────────────────────────────────
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: wiremesh_opc_app
+    restart: unless-stopped
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: mysql+pymysql://wiremesh:${MYSQL_PASSWORD}@mysql:3306/wiremesh_opc
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      USE_CELERY: "true"
+      AUTO_CREATE_TABLES: "false"
+    volumes:
+      - uploads_data:/app/uploads
+      - standards_data:/app/data/standards
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    networks:
+      - wiremesh_opc_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── Celery Worker（算量任务异步执行）─────────────────────────
+  celery_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: wiremesh_opc_worker
+    restart: unless-stopped
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=2
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: mysql+pymysql://wiremesh:${MYSQL_PASSWORD}@mysql:3306/wiremesh_opc
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+    volumes:
+      - uploads_data:/app/uploads
+      - standards_data:/app/data/standards
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - wiremesh_opc_net
+
+  # ── Nginx 反向代理 + 前端静态服务 ─────────────────────────
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nginx
+    container_name: wiremesh_opc_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+    depends_on:
+      - app
+    networks:
+      - wiremesh_opc_net
+
+  # ── MySQL 8.0 ──────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: wiremesh_opc_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: wiremesh_opc
+      MYSQL_USER: wiremesh
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-openspecpass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - wiremesh_opc_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+
+  # ── Redis 7 ────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: wiremesh_opc_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - wiremesh_opc_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── MinIO 文件存储 ─────────────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-04-06T05-26-02Z
+    container_name: wiremesh_opc_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Web Console
+    networks:
+      - wiremesh_opc_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── ChromaDB 向量库 ────────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:0.5.0
+    container_name: wiremesh_opc_chromadb
+    restart: unless-stopped
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "8002:8000"
+    networks:
+      - wiremesh_opc_net
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+
+# ── 数据卷 ────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+  redis_data:
+  minio_data:
+  chroma_data:
+  uploads_data:
+  standards_data:
+
+# ── 网络 ──────────────────────────────────────────────────────
+networks:
+  wiremesh_opc_net:
+    driver: bridge
