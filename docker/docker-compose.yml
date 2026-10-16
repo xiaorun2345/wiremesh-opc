@@ -72,6 +72,31 @@ services:
     networks:
       - wiremesh_opc_net
 
+  celery_beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: wiremesh_opc_beat
+    restart: unless-stopped
+    command: celery -A app.core.celery_app beat --loglevel=info
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: mysql+pymysql://wiremesh:${MYSQL_PASSWORD}@mysql:3306/wiremesh_opc
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      USE_CELERY: "true"
+      AUTO_CREATE_TABLES: "false"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - wiremesh_opc_net
+
   # ── Nginx 反向代理 + 前端静态服务 ─────────────────────────
   nginx:
     build:

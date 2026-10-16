@@ -10,7 +10,7 @@ from app.core.memory.redis_memory import TaskMemory
 
 PRODUCT_ALIASES = {
     "welded_mesh": ("焊接网", "电焊网", "防护网", "welded mesh", "building mesh"),
-    "fence_mesh": ("护栏网", "围栏网", "养殖围网", "fence", "farm fence"),
+    "fence_mesh": ("护栏网", "围栏网", "养殖围网", "fence", "fencing", "farm fence"),
     "hexagonal_mesh": ("六角网", "鸡网", "hexagonal mesh", "chicken wire"),
     "screen_mesh": ("筛网", "矿筛网", "不锈钢网", "screen mesh", "woven mesh"),
     "expanded_mesh": ("钢板网", "冲孔网", "expanded mesh", "perforated mesh"),
@@ -19,7 +19,7 @@ PRODUCT_ALIASES = {
 MATERIAL_ALIASES = {
     "stainless_316": ("316", "sus316", "不锈钢316"),
     "stainless_304": ("304", "sus304", "不锈钢304"),
-    "galvanized_steel": ("镀锌丝", "galvanized wire"),
+    "galvanized_steel": ("镀锌丝", "galvanized wire", "galvanized steel"),
     "low_carbon_steel": ("低碳钢", "铁丝", "low carbon steel"),
 }
 

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.utils.db import Base
@@ -200,3 +200,66 @@ class OrderAttachment(Base):
     object_path: Mapped[str] = mapped_column(String(512))
     content_type: Mapped[str] = mapped_column(String(120), default="application/octet-stream")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class LeadSource(Base):
+    """A configured public procurement source for one workspace."""
+    __tablename__ = "opc_lead_sources"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    config_json: Mapped[str] = mapped_column(Text, default="{}")
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_status: Mapped[str] = mapped_column(String(32), default="NEVER")
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OverseasLead(Base):
+    """Normalized public opportunity before it becomes a sales inquiry."""
+    __tablename__ = "opc_overseas_leads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    source_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("opc_lead_sources.id"), nullable=True)
+    source: Mapped[str] = mapped_column(String(32), index=True)
+    external_id: Mapped[str] = mapped_column(String(200), index=True)
+    dedupe_key: Mapped[str] = mapped_column(String(280), unique=True, index=True)
+    source_url: Mapped[str] = mapped_column(String(1024), default="")
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    buyer: Mapped[str] = mapped_column(String(240), default="")
+    country: Mapped[str] = mapped_column(String(80), default="")
+    language: Mapped[str] = mapped_column(String(16), default="en")
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deadline_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    budget: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    currency: Mapped[str] = mapped_column(String(8), default="")
+    raw_text: Mapped[str] = mapped_column(Text, default="")
+    raw_json: Mapped[str] = mapped_column(Text, default="{}")
+    extracted_json: Mapped[str] = mapped_column(Text, default="{}")
+    score: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    score_reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    status: Mapped[str] = mapped_column(String(32), default="NEW", index=True)
+    inquiry_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("opc_inquiries.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Notification(Base):
+    __tablename__ = "opc_notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    category: Mapped[str] = mapped_column(String(32), index=True)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    body: Mapped[str] = mapped_column(Text, default="")
+    entity_type: Mapped[str] = mapped_column(String(32), default="")
+    entity_id: Mapped[str] = mapped_column(String(64), default="")
+    priority: Mapped[str] = mapped_column(String(16), default="NORMAL")
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    channel_status_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

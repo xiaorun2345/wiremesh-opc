@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     INBOUND_WEBHOOK_TOKEN: str = ""
     USE_CELERY: bool = False
     AUTO_CREATE_TABLES: bool = True
+    SAM_GOV_API_KEY: str = ""
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_STARTTLS: bool = True
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    NOTIFY_EMAILS: str = ""
 
     # ChromaDB
     CHROMA_HOST: str = "localhost"

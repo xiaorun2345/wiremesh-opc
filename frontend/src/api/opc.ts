@@ -41,4 +41,15 @@ export const opcApi = {
   indexKnowledge: (id: string) => client.post(`/automation/knowledge/${id}/index`),
   searchKnowledge: (q: string) => client.get('/automation/knowledge/search', { params: { q } }),
   audit: () => client.get('/automation/audit'),
+
+  listLeadSources: () => client.get('/automation/lead-sources'),
+  createLeadSource: (data: Record<string, unknown>) => client.post('/automation/lead-sources', data),
+  updateLeadSource: (id: string, data: Record<string, unknown>) => client.patch(`/automation/lead-sources/${id}`, data),
+  deleteLeadSource: (id: string) => client.delete(`/automation/lead-sources/${id}`),
+  runLeadSource: (id: string) => client.post(`/automation/lead-sources/${id}/run`),
+  listLeads: (params: Record<string, unknown> = {}) => client.get('/automation/leads', { params }),
+  updateLead: (id: string, data: Record<string, unknown>) => client.patch(`/automation/leads/${id}`, data),
+  convertLead: (id: string) => client.post(`/automation/leads/${id}/convert-inquiry`),
+  listNotifications: (unreadOnly = false) => client.get('/automation/notifications', { params: { unread_only: unreadOnly } }),
+  readNotification: (id: string) => client.post(`/automation/notifications/${id}/read`),
 }

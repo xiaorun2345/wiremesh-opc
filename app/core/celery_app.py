@@ -9,7 +9,7 @@ celery_app = Celery(
     "wiremesh_opc",
     broker=settings.REDIS_URL.replace("/0", "/1"),   # 用 DB1 做任务队列，DB0 留给 Memory
     backend=settings.REDIS_URL.replace("/0", "/1"),
-    include=["app.tasks.task_runner"],
+    include=["app.tasks.task_runner", "app.tasks.lead_runner"],
 )
 
 celery_app.conf.update(
@@ -24,4 +24,10 @@ celery_app.conf.update(
     task_soft_time_limit=1800,     # 软超时 30 分钟
     task_time_limit=2100,          # 硬超时 35 分钟（强制 kill）
     result_expires=86400,          # 结果保留 24 小时
+    beat_schedule={
+        "poll-public-procurement-leads": {
+            "task": "wiremesh_opc.poll_leads",
+            "schedule": 1800.0,
+        },
+    },
 )

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.opc import AuditLog, CustomerFollowUp, InboundMessage, Inquiry, KnowledgeDocument, Order, OrderAttachment, OrderEvent, PriceRule
+from app.models.opc import AuditLog, CustomerFollowUp, InboundMessage, Inquiry, KnowledgeDocument, LeadSource, Notification, Order, OrderAttachment, OrderEvent, OverseasLead, PriceRule
 from app.models.user import User
 from app.utils.auth import get_current_user
 from app.utils.db import get_db
@@ -53,8 +53,114 @@ class InboundInput(BaseModel):
     attachments: list[dict[str, Any]] = []
 
 
+class LeadSourceInput(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    provider: str = Field(pattern="^(ted|sam|contracts_finder|rss)$")
+    enabled: bool = True
+    config: dict[str, Any] = {}
+
+
+class LeadStatusInput(BaseModel):
+    status: str = Field(pattern="^(NEW|HIGH_PRIORITY|REVIEWING|INTERESTED|IGNORED|ARCHIVED|CONVERTED)$")
+
+
 async def audit(db: AsyncSession, owner_id: str, action: str, entity_type: str, entity_id: str, data: dict | None = None):
     db.add(AuditLog(owner_id=owner_id, action=action, entity_type=entity_type, entity_id=entity_id, data_json=json.dumps(data or {}, ensure_ascii=False)))
+
+
+def lead_out(item: OverseasLead) -> dict:
+    return {
+        "id": item.id, "source_id": item.source_id, "source": item.source, "external_id": item.external_id,
+        "source_url": item.source_url, "title": item.title, "buyer": item.buyer, "country": item.country,
+        "language": item.language, "published_at": item.published_at, "deadline_at": item.deadline_at,
+        "budget": item.budget, "currency": item.currency, "raw_text": item.raw_text,
+        "extracted": json.loads(item.extracted_json or "{}"), "score": item.score,
+        "score_reasons": json.loads(item.score_reasons_json or "[]"), "status": item.status,
+        "inquiry_id": item.inquiry_id, "created_at": item.created_at,
+    }
+
+
+@router.get("/lead-sources")
+async def list_lead_sources(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    rows = await db.execute(select(LeadSource).where(LeadSource.owner_id == user.id).order_by(LeadSource.created_at.desc()))
+    return [{"id": x.id, "name": x.name, "provider": x.provider, "enabled": x.enabled, "config": json.loads(x.config_json or "{}"), "last_run_at": x.last_run_at, "last_status": x.last_status, "last_error": x.last_error} for x in rows.scalars().all()]
+
+
+@router.post("/lead-sources", status_code=201)
+async def create_lead_source(body: LeadSourceInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    item = LeadSource(owner_id=user.id, name=body.name, provider=body.provider, enabled=body.enabled, config_json=json.dumps(body.config, ensure_ascii=False))
+    db.add(item); await db.flush(); await audit(db, user.id, "lead_source.create", "lead_source", item.id, {"provider": body.provider}); await db.commit()
+    return {"id": item.id}
+
+
+@router.patch("/lead-sources/{source_id}")
+async def update_lead_source(source_id: str, body: LeadSourceInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(LeadSource).where(LeadSource.id == source_id, LeadSource.owner_id == user.id)); item = row.scalar_one_or_none()
+    if not item: raise HTTPException(404, "数据源不存在")
+    item.name = body.name; item.provider = body.provider; item.enabled = body.enabled; item.config_json = json.dumps(body.config, ensure_ascii=False)
+    await audit(db, user.id, "lead_source.update", "lead_source", item.id); await db.commit(); return {"id": item.id}
+
+
+@router.delete("/lead-sources/{source_id}", status_code=204)
+async def delete_lead_source(source_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(LeadSource).where(LeadSource.id == source_id, LeadSource.owner_id == user.id)); item = row.scalar_one_or_none()
+    if not item: raise HTTPException(404, "数据源不存在")
+    await db.delete(item); await audit(db, user.id, "lead_source.delete", "lead_source", source_id); await db.commit()
+
+
+@router.post("/lead-sources/{source_id}/run")
+async def run_lead_source(source_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(LeadSource).where(LeadSource.id == source_id, LeadSource.owner_id == user.id)); source = row.scalar_one_or_none()
+    if not source: raise HTTPException(404, "数据源不存在")
+    from app.services.lead_radar import run_source
+    try:
+        result = await run_source(db, source)
+        await audit(db, user.id, "lead_source.run", "lead_source", source.id, result); await db.commit()
+        return result
+    except Exception as exc:
+        raise HTTPException(502, f"采集失败: {exc}")
+
+
+@router.get("/leads")
+async def list_leads(status: str | None = None, min_score: int = 0, limit: int = 100, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    stmt = select(OverseasLead).where(OverseasLead.owner_id == user.id, OverseasLead.score >= min_score)
+    if status: stmt = stmt.where(OverseasLead.status == status)
+    rows = await db.execute(stmt.order_by(OverseasLead.score.desc(), OverseasLead.created_at.desc()).limit(min(max(limit, 1), 200)))
+    return [lead_out(item) for item in rows.scalars().all()]
+
+
+@router.patch("/leads/{lead_id}")
+async def update_lead_status(lead_id: str, body: LeadStatusInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(OverseasLead).where(OverseasLead.id == lead_id, OverseasLead.owner_id == user.id)); lead = row.scalar_one_or_none()
+    if not lead: raise HTTPException(404, "商机不存在")
+    lead.status = body.status; await audit(db, user.id, "lead.status", "overseas_lead", lead.id, {"status": body.status}); await db.commit(); return lead_out(lead)
+
+
+@router.post("/leads/{lead_id}/convert-inquiry", status_code=201)
+async def convert_lead_to_inquiry(lead_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(OverseasLead).where(OverseasLead.id == lead_id, OverseasLead.owner_id == user.id)); lead = row.scalar_one_or_none()
+    if not lead: raise HTTPException(404, "商机不存在")
+    if lead.inquiry_id: return {"inquiry_id": lead.inquiry_id, "existing": True}
+    extracted = json.loads(lead.extracted_json or "{}")
+    inquiry = Inquiry(owner_id=user.id, source=lead.source, raw_text=lead.raw_text, product_type=extracted.get("spec", {}).get("product_type", ""), specs_json=json.dumps(extracted, ensure_ascii=False), status="NEW", confidence=max(extracted.get("confidence", {}).values(), default=0))
+    db.add(inquiry); await db.flush(); lead.inquiry_id = inquiry.id; lead.status = "CONVERTED"
+    await audit(db, user.id, "lead.convert", "overseas_lead", lead.id, {"inquiry_id": inquiry.id}); await db.commit()
+    return {"inquiry_id": inquiry.id, "existing": False}
+
+
+@router.get("/notifications")
+async def list_notifications(unread_only: bool = False, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    stmt = select(Notification).where(Notification.owner_id == user.id)
+    if unread_only: stmt = stmt.where(Notification.read_at.is_(None))
+    rows = await db.execute(stmt.order_by(Notification.created_at.desc()).limit(100))
+    return [{"id": x.id, "category": x.category, "title": x.title, "body": x.body, "entity_type": x.entity_type, "entity_id": x.entity_id, "priority": x.priority, "read_at": x.read_at, "created_at": x.created_at, "channels": json.loads(x.channel_status_json or "{}")} for x in rows.scalars().all()]
+
+
+@router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(Notification).where(Notification.id == notification_id, Notification.owner_id == user.id)); item = row.scalar_one_or_none()
+    if not item: raise HTTPException(404, "通知不存在")
+    item.read_at = datetime.utcnow(); await db.commit(); return {"id": item.id, "read_at": item.read_at}
 
 
 @router.get("/prices")

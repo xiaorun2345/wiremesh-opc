@@ -12,6 +12,7 @@ const reviewStatus = ref<'pending' | 'approved' | 'editing'>('pending')
 
 const menuItems = [
   { label: '工作台', icon: 'House' },
+  { label: '海外商机', icon: 'Radar' },
   { label: '询盘中心', icon: 'ChatDotRound' }, { label: '图纸识别', icon: 'Picture' },
   { label: '报价单', icon: 'Document' }, { label: '订单交付', icon: 'Box' }, { label: '客户管理', icon: 'User' },
   { label: '合作工厂', icon: 'OfficeBuilding' }, { label: '知识库', icon: 'Collection' },

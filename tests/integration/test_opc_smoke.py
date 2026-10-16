@@ -59,3 +59,12 @@ def test_opc_end_to_end_smoke():
         assert analytics.status_code == 200
         assert analytics.json()["customers"] >= 1
         assert analytics.json()["orders"] >= 1
+
+        source = client.post("/api/v2/automation/lead-sources", headers=headers, json={
+            "name": "TED Wire Mesh", "provider": "ted", "enabled": False,
+            "config": {"cpv_codes": ["44313100"]},
+        })
+        assert source.status_code == 201, source.text
+        sources = client.get("/api/v2/automation/lead-sources", headers=headers)
+        assert sources.status_code == 200
+        assert sources.json()[0]["provider"] == "ted"

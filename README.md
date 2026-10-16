@@ -16,6 +16,8 @@
 - 基于真实工厂档案的能力、质量、交期匹配
 - 中英文风格报价 PDF 与 Excel 输出
 - 企业微信待审批通知
+- TED、SAM.gov、Contracts Finder 与公开 RSS 的海外商机雷达
+- 海外商机去重、丝网相关度评分、网页通知、企业微信和邮件提醒
 - 报价批准、退回和一键转订单
 - 客户、跟进、工厂、订单、质检、物流与异常管理
 - 知识资料切片、ChromaDB 索引与检索
@@ -121,6 +123,9 @@ npm run dev
 - `/api/v2/automation/followups`：客户跟进
 - `/api/v2/automation/orders/{id}/events`：订单事件
 - `/api/v2/automation/channels/inbound`：渠道 Webhook
+- `/api/v2/automation/lead-sources`：海外采购数据源
+- `/api/v2/automation/leads`：海外商机池
+- `/api/v2/automation/notifications`：网页通知
 - `/api/v2/automation/audit`：审计日志
 
 ## 报价安全原则
@@ -142,6 +147,7 @@ cd frontend && npm run build
 ```
 
 详细部署和业务说明见 [`docs/opc-mvp.md`](docs/opc-mvp.md)。
+海外数据源配置见 [`docs/overseas-lead-radar.md`](docs/overseas-lead-radar.md)。
 
 ## License
 

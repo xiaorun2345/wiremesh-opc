@@ -9,6 +9,7 @@ import OrderDelivery from './OrderDelivery.vue'
 import InquiryManagement from './InquiryManagement.vue'
 import KnowledgeManagement from './KnowledgeManagement.vue'
 import PriceManagement from './PriceManagement.vue'
+import LeadRadar from './LeadRadar.vue'
 
 const props = defineProps<{ module: string }>()
 
@@ -27,6 +28,7 @@ const orderModule = ref<InstanceType<typeof OrderDelivery> | null>(null)
 const inquiryModule = ref<InstanceType<typeof InquiryManagement> | null>(null)
 const knowledgeModule = ref<InstanceType<typeof KnowledgeManagement> | null>(null)
 const priceModule = ref<InstanceType<typeof PriceManagement> | null>(null)
+const leadRadar = ref<InstanceType<typeof LeadRadar> | null>(null)
 const quoteForm = reactive({
   product_type: 'welded_mesh', material: 'low_carbon_steel',
   wire_diameter_mm: 3.5, mesh_size_mm: 50,
@@ -37,6 +39,7 @@ const quoteForm = reactive({
 
 const descriptions: Record<string, { eyebrow: string; title: string; desc: string; action: string }> = {
   询盘中心: { eyebrow: 'RFQ INBOX', title: '询盘中心', desc: '统一接收微信、邮件、网站和手工询盘，识别需求并推进到报价。', action: '新增询盘' },
+  海外商机: { eyebrow: 'PUBLIC PROCUREMENT RADAR', title: '海外商机', desc: '采集官方采购 API 和公开 RSS，自动去重、评分并推送高优先级机会。', action: '添加数据源' },
   图纸识别: { eyebrow: 'DRAWING INTELLIGENCE', title: '图纸识别', desc: '识别 PDF、CAD 和图片中的丝网规格，低置信度字段交由人工确认。', action: '上传新图纸' },
   报价单: { eyebrow: 'QUOTATION CENTER', title: '报价单', desc: '管理草稿、待审批、已发送和已成交报价，完整追踪每次修改。', action: '新建报价' },
   订单交付: { eyebrow: 'ORDER DELIVERY', title: '订单交付', desc: '跟踪收款、工厂排产、生产、质检、装柜、物流和售后全过程。', action: '新建订单' },
@@ -70,6 +73,7 @@ function primaryAction() {
   if (props.module === '合作工厂') return factoryModule.value?.openCreate()
   if (props.module === '订单交付') return orderModule.value?.openCreate()
   if (props.module === '询盘中心') return inquiryModule.value?.openCreate()
+  if (props.module === '海外商机') return leadRadar.value?.openCreateSource()
   if (props.module === '知识库') return knowledgeModule.value?.openCreate()
   if (props.module === '价格规则') return priceModule.value?.openCreate()
   if (props.module === '运营数据') return exportAnalytics()
@@ -210,6 +214,10 @@ function confirmSpecs() { ElMessage.success('规格已确认，可以进入报�
 
     <template v-else-if="module === '询盘中心'">
       <InquiryManagement ref="inquiryModule" @quote="openQuoteFromInquiry" />
+    </template>
+
+    <template v-else-if="module === '海外商机'">
+      <LeadRadar ref="leadRadar" />
     </template>
 
     <template v-else-if="module === '报价单'">
