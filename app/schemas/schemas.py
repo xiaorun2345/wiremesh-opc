@@ -20,6 +20,9 @@ class StepStatus(BaseModel):
     agent: str
     status: str
     duration_ms: int | None = None
+    attempts: int = 0
+    fallback: str = ""
+    message: str = ""
 
 class TaskResponse(BaseModel):
     task_id: str

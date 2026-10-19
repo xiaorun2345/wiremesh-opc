@@ -127,6 +127,16 @@ class TaskServiceV2:
             (s["agent"] for s in steps if s["status"] in ("FAILED", "RUNNING", "PAUSED")),
             default_step,
         )
+        restart_idx = next((idx for idx, step in enumerate(steps) if step["agent"] == failed_step), 0)
+
+        # The failed point and every downstream node must be recomputed. Keeping
+        # their old SUCCESS state makes the UI and the actual workflow disagree.
+        for step in steps[restart_idx:]:
+            step["status"] = "PENDING"
+            step["duration_ms"] = None
+            step["attempts"] = 0
+            step["fallback"] = ""
+            step["message"] = ""
 
         if override_data:
             mem = TaskMemory(task_id)
@@ -136,12 +146,17 @@ class TaskServiceV2:
                     await mem.set(key, override_data[key])
 
         task.status = "RUNNING"
+        task.current_step = None
+        task.progress = int(restart_idx / max(len(steps), 1) * 100)
+        task.error_msg = None
+        task.steps_json = json.dumps(steps, ensure_ascii=False)
         await self.db.commit()
         return failed_step
 
     async def cancel_task(self, task_id: str):
         result = await self.db.execute(select(Task).where(Task.id == task_id))
         task = result.scalar_one_or_none()
-        if task:
+        if task and task.status in ("PENDING", "RUNNING", "PAUSED"):
             task.status = "CANCELLED"
+            task.current_step = None
             await self.db.commit()

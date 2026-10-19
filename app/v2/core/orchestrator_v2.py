@@ -127,6 +127,9 @@ class OrchestratorV2:
         for idx, agent_name in enumerate(route):
             if idx < start_idx:
                 continue
+            if await self._is_cancelled(task.id):
+                logger.info(f"[V2] 任务 {task.id} 已取消，停止编排")
+                return
 
             agent = self._agents.get(agent_name)
             if not agent:
@@ -172,67 +175,68 @@ class OrchestratorV2:
             result   = await agent.run(msg)
             duration_ms = int((time.time() - start_ts) * 1000)
 
-            if result.status == AgentStatus.FAILED:
+            fallback_used = ""
+            switched_engine = False
+            skip_step = False
+            while result.status == AgentStatus.FAILED:
                 retry_count = retry_counts.get(agent_name, 0)
-
-                # ── DecisionAgent 决定降级方案 ─────────────────
-                fallback = await self._run_failure_decision(
-                    task, mem, agent_name, result.error, retry_count
-                )
+                fallback = await self._run_failure_decision(task, mem, agent_name, result.error, retry_count)
+                fallback_used = fallback
 
                 if fallback == "retry" and retry_count < 2:
                     retry_counts[agent_name] = retry_count + 1
-                    logger.info(f"[V2] {agent_name} 重试（第 {retry_count+1} 次）")
+                    logger.info(f"[V2] {agent_name} 重试（第 {retry_count + 1} 次）")
                     await asyncio.sleep(1)
+                    if await self._is_cancelled(task.id):
+                        return
                     result = await agent.run(msg)
-
-                elif fallback == "switch_engine":
-                    alt_name = self.ENGINE_FALLBACK.get(agent_name)
-                    if alt_name and alt_name in self._agents:
-                        logger.info(f"[V2] {agent_name} 切换到备用引擎 {alt_name}")
-                        alt_msg = MCPMessage(
-                            trace_id=trace_id,
-                            msg_type=MsgType.TASK,
-                            payload={"step_index": idx, "fallback": True},
-                            sender_agent="orchestrator_v2",
-                            target_agent=alt_name,
-                        )
-                        result = await self._agents[alt_name].run(alt_msg)
-                    else:
-                        logger.warning(f"[V2] {agent_name} 无备用引擎，标记失败")
-
-                elif fallback == "skip" and agent_name in self.SKIPPABLE_AGENTS:
-                    logger.info(f"[V2] {agent_name} 跳过（非关键步骤）")
-                    await self._update_step(task.id, agent_name, "SKIPPED", route, duration_ms)
+                    duration_ms = int((time.time() - start_ts) * 1000)
                     continue
 
-                elif fallback == "human_review":
+                if fallback == "switch_engine" and not switched_engine:
+                    alt_name = self.ENGINE_FALLBACK.get(agent_name)
+                    if alt_name and alt_name in self._agents:
+                        switched_engine = True
+                        logger.info(f"[V2] {agent_name} 切换到备用引擎 {alt_name}")
+                        alt_msg = MCPMessage(trace_id=trace_id, msg_type=MsgType.TASK,
+                                             payload={"step_index": idx, "fallback": True},
+                                             sender_agent="orchestrator_v2", target_agent=alt_name)
+                        result = await self._agents[alt_name].run(alt_msg)
+                        duration_ms = int((time.time() - start_ts) * 1000)
+                        continue
+
+                if fallback == "skip" and agent_name in self.SKIPPABLE_AGENTS:
+                    await self._update_step(task.id, agent_name, "SKIPPED", route, duration_ms,
+                                            attempts=retry_counts.get(agent_name, 0), fallback="skip")
+                    skip_step = True
+                    break
+
+                if fallback == "human_review" or retry_count >= 2:
                     review_data = {
-                        "paused_at_step": agent_name,
-                        "failure_reason": result.error,
-                        "fallback_plan":  fallback,
-                        "rooms":          await mem.get("rooms", []),
-                        "walls":          await mem.get("walls", []),
-                        "quantity_list":  await mem.get("quantity_list", {}),
-                        "review_hint":    f"{agent_name} 执行失败，请检查后续跑",
+                        "paused_at_step": agent_name, "failure_reason": result.error,
+                        "fallback_plan": fallback, "wire_mesh_spec": await mem.get("wire_mesh_spec", {}),
+                        "missing_fields": await mem.get("wire_mesh_missing_fields", []),
+                        "review_hint": f"{agent_name} 执行失败，请确认字段或修正文件后续跑",
                     }
                     await mem.set("human_review_data", review_data)
+                    await self._update_step(task.id, agent_name, "FAILED", route, duration_ms,
+                                            attempts=retry_counts.get(agent_name, 0), fallback=fallback,
+                                            message=result.error)
                     await self._update_task(task.id, status="PAUSED", current_step=agent_name)
-                    await self._record_flywheel_result(
-                        task_id=task.id,
-                        file_type=file_type,
-                        mem=mem,
-                        result="paused",
-                        failed_agent=agent_name,
-                        failure_reason=result.error,
-                        fallback_used="human_review",
-                        total_duration_ms=int((time.time() - _task_start_ts) * 1000),
-                    )
-                    logger.info(f"[V2] 任务 {task.id} 暂停等待人工审核")
+                    await self._record_flywheel_result(task_id=task.id, file_type=file_type, mem=mem,
+                        result="paused", failed_agent=agent_name, failure_reason=result.error,
+                        fallback_used=fallback, total_duration_ms=int((time.time() - _task_start_ts) * 1000))
                     return
 
+                break
+
+            if skip_step:
+                continue
+
             if result.status == AgentStatus.FAILED:
-                await self._update_step(task.id, agent_name, "FAILED", route, duration_ms)
+                await self._update_step(task.id, agent_name, "FAILED", route, duration_ms,
+                                        attempts=retry_counts.get(agent_name, 0), fallback=fallback_used,
+                                        message=result.error)
                 await self._update_task(task.id, status="FAILED", error_msg=result.error)
                 await self._record_flywheel_result(
                     task_id=task.id,
@@ -241,12 +245,13 @@ class OrchestratorV2:
                     result="failed",
                     failed_agent=agent_name,
                     failure_reason=result.error,
-                    fallback_used=retry_counts.get(agent_name, {}) if isinstance(retry_counts.get(agent_name), dict) else "",
+                    fallback_used=fallback_used,
                     total_duration_ms=int((time.time() - _task_start_ts) * 1000),
                 )
                 return
 
-            await self._update_step(task.id, agent_name, "SUCCESS", route, duration_ms)
+            await self._update_step(task.id, agent_name, "SUCCESS", route, duration_ms,
+                                    attempts=retry_counts.get(agent_name, 0), fallback=fallback_used)
 
             # PDF 包含结构图/效果图页，动态插入 VisionParseAgent
             if result.data.get("needs_vision_parse") and agent_name == "TextExtractAgent":
@@ -495,8 +500,12 @@ class OrchestratorV2:
                 setattr(task, k, v)
             await self.db.commit()
 
+    async def _is_cancelled(self, task_id: str) -> bool:
+        result = await self.db.execute(select(Task.status).where(Task.id == task_id))
+        return result.scalar_one_or_none() == "CANCELLED"
+
     async def _update_step(self, task_id: str, agent_name: str, status: str,
-                           route: list, duration_ms: int | None = None):
+                           route: list, duration_ms: int | None = None, **metadata):
         result = await self.db.execute(select(Task).where(Task.id == task_id))
         task = result.scalar_one_or_none()
         if not task:
@@ -517,5 +526,8 @@ class OrchestratorV2:
                 s["status"] = status
                 if duration_ms is not None:
                     s["duration_ms"] = duration_ms
+                for key, value in metadata.items():
+                    if value not in (None, ""):
+                        s[key] = value
         task.steps_json = json.dumps(steps, ensure_ascii=False)
         await self.db.commit()

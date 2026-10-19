@@ -55,7 +55,10 @@ const STATUS_COLOR: Record<string, string> = {
                ? `${(step.duration_ms / 1000).toFixed(1)}s`
                : `${step.duration_ms}ms` }}
           </span>
+          <span v-if="step.attempts" class="duration">尝试 {{ step.attempts }} 次</span>
+          <span v-if="step.fallback" class="fallback">降级：{{ step.fallback }}</span>
         </div>
+        <div v-if="step.message" class="step-message">{{ step.message }}</div>
       </div>
     </div>
   </div>
@@ -94,6 +97,8 @@ const STATUS_COLOR: Record<string, string> = {
   font-size: 12px;
 }
 .duration { color: #909399; }
+.fallback { color: #e6a23c; }
+.step-message { margin-top: 4px; color: #909399; font-size: 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinning { animation: spin 1s linear infinite; }
 </style>

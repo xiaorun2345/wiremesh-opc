@@ -27,6 +27,9 @@ export interface StepStatus {
   agent: string
   status: 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'SKIPPED'
   duration_ms: number | null
+  attempts?: number
+  fallback?: string
+  message?: string
 }
 
 export interface TaskResponse {
@@ -79,6 +82,9 @@ export const AGENT_LABELS: Record<string, string> = {
   BudgetCheckAgent:  '✅ 合规审核',
   ReportExportAgent: '📋 报告生成',
   DecisionAgent:     '🧠 智能决策',
+  WireMeshSpecAgent: '🧵 丝网规格提取',
+  WireMeshQuote:     '💰 规则报价',
+  WireMeshReport:    '📄 报价文件生成',
   ParseAgent:        '🔍 图纸解析',
 }
 
