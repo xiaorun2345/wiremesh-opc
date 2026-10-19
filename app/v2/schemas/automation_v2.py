@@ -64,6 +64,11 @@ class LeadStatusInput(BaseModel):
     status: str = Field(pattern="^(NEW|HIGH_PRIORITY|REVIEWING|INTERESTED|IGNORED|ARCHIVED|CONVERTED)$")
 
 
+class LeadReviewInput(BaseModel):
+    decision: str = Field(pattern="^(INTERESTED|IGNORED)$")
+    note: str = Field(default="", max_length=2000)
+
+
 async def audit(db: AsyncSession, owner_id: str, action: str, entity_type: str, entity_id: str, data: dict | None = None):
     db.add(AuditLog(owner_id=owner_id, action=action, entity_type=entity_type, entity_id=entity_id, data_json=json.dumps(data or {}, ensure_ascii=False)))
 
@@ -74,6 +79,8 @@ def lead_out(item: OverseasLead) -> dict:
         "source_url": item.source_url, "title": item.title, "buyer": item.buyer, "country": item.country,
         "language": item.language, "published_at": item.published_at, "deadline_at": item.deadline_at,
         "budget": item.budget, "currency": item.currency, "raw_text": item.raw_text,
+        "title_zh": item.title_zh, "summary_zh": item.summary_zh, "translation_status": item.translation_status,
+        "review_status": item.review_status, "review_note": item.review_note, "reviewed_at": item.reviewed_at,
         "extracted": json.loads(item.extracted_json or "{}"), "score": item.score,
         "score_reasons": json.loads(item.score_reasons_json or "[]"), "status": item.status,
         "inquiry_id": item.inquiry_id, "created_at": item.created_at,
@@ -157,10 +164,32 @@ async def update_lead_status(lead_id: str, body: LeadStatusInput, user: User = D
     lead.status = body.status; await audit(db, user.id, "lead.status", "overseas_lead", lead.id, {"status": body.status}); await db.commit(); return lead_out(lead)
 
 
+@router.post("/leads/{lead_id}/enrich")
+async def enrich_lead(lead_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(OverseasLead).where(OverseasLead.id == lead_id, OverseasLead.owner_id == user.id)); lead = row.scalar_one_or_none()
+    if not lead: raise HTTPException(404, "商机不存在")
+    from app.services.lead_enrichment import enrich_to_chinese
+    result = await enrich_to_chinese(lead.title, lead.raw_text, lead.buyer, lead.country)
+    lead.title_zh = result["title_zh"]; lead.summary_zh = result["summary_zh"]; lead.translation_status = result["translation_status"]
+    await audit(db, user.id, "lead.enrich", "overseas_lead", lead.id, {"translation_status": lead.translation_status}); await db.commit()
+    return lead_out(lead)
+
+
+@router.post("/leads/{lead_id}/review")
+async def review_lead(lead_id: str, body: LeadReviewInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(OverseasLead).where(OverseasLead.id == lead_id, OverseasLead.owner_id == user.id)); lead = row.scalar_one_or_none()
+    if not lead: raise HTTPException(404, "商机不存在")
+    lead.status = body.decision; lead.review_status = "APPROVED" if body.decision == "INTERESTED" else "REJECTED"; lead.review_note = body.note; lead.reviewed_at = datetime.utcnow()
+    await audit(db, user.id, "lead.review", "overseas_lead", lead.id, {"decision": body.decision, "note": body.note}); await db.commit()
+    return lead_out(lead)
+
+
 @router.post("/leads/{lead_id}/convert-inquiry", status_code=201)
 async def convert_lead_to_inquiry(lead_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     row = await db.execute(select(OverseasLead).where(OverseasLead.id == lead_id, OverseasLead.owner_id == user.id)); lead = row.scalar_one_or_none()
     if not lead: raise HTTPException(404, "商机不存在")
+    if lead.status != "INTERESTED":
+        raise HTTPException(400, "请先完成人工审核，再转入询盘")
     if lead.inquiry_id: return {"inquiry_id": lead.inquiry_id, "existing": True}
     extracted = json.loads(lead.extracted_json or "{}")
     inquiry = Inquiry(owner_id=user.id, source=lead.source, raw_text=lead.raw_text, product_type=extracted.get("spec", {}).get("product_type", ""), specs_json=json.dumps(extracted, ensure_ascii=False), status="NEW", confidence=max(extracted.get("confidence", {}).values(), default=0))

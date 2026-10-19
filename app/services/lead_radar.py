@@ -298,6 +298,8 @@ async def persist_candidates(db: AsyncSession, source: LeadSource, candidates: l
             continue
         score, reasons, extracted = score_candidate(candidate, config)
         status = "HIGH_PRIORITY" if score >= 80 else "NEW" if score >= 40 else "ARCHIVED"
+        from app.services.lead_enrichment import enrich_to_chinese
+        enrichment = await enrich_to_chinese(candidate.title, candidate.text, candidate.buyer, candidate.country)
         lead = OverseasLead(
             owner_id=source.owner_id, source_id=source.id, source=candidate.source, external_id=candidate.external_id,
             dedupe_key=dedupe_key, source_url=candidate.source_url, title=candidate.title, buyer=candidate.buyer,
@@ -306,6 +308,8 @@ async def persist_candidates(db: AsyncSession, source: LeadSource, candidates: l
             raw_text=candidate.text, raw_json=json.dumps(candidate.raw, ensure_ascii=False),
             extracted_json=json.dumps(extracted, ensure_ascii=False), score=score,
             score_reasons_json=json.dumps(reasons, ensure_ascii=False), status=status,
+            title_zh=enrichment["title_zh"], summary_zh=enrichment["summary_zh"],
+            translation_status=enrichment["translation_status"], review_status="NEEDS_REVIEW",
         )
         db.add(lead)
         await db.flush()

@@ -50,6 +50,8 @@ export const opcApi = {
   runLeadSource: (id: string) => client.post(`/automation/lead-sources/${id}/run`),
   listLeads: (params: Record<string, unknown> = {}) => client.get('/automation/leads', { params }),
   updateLead: (id: string, data: Record<string, unknown>) => client.patch(`/automation/leads/${id}`, data),
+  enrichLead: (id: string) => client.post(`/automation/leads/${id}/enrich`),
+  reviewLead: (id: string, data: Record<string, unknown>) => client.post(`/automation/leads/${id}/review`, data),
   convertLead: (id: string) => client.post(`/automation/leads/${id}/convert-inquiry`),
   listNotifications: (unreadOnly = false) => client.get('/automation/notifications', { params: { unread_only: unreadOnly } }),
   readNotification: (id: string) => client.post(`/automation/notifications/${id}/read`),
