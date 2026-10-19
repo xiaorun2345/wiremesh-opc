@@ -269,3 +269,19 @@ class Notification(Base):
     read_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     channel_status_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ModelProviderConfig(Base):
+    """Encrypted per-workspace model credentials and routing choices."""
+    __tablename__ = "opc_model_provider_configs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(32), index=True)
+    purpose: Mapped[str] = mapped_column(String(16), default="text", index=True)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    base_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    api_key_encrypted: Mapped[str] = mapped_column(Text, default="")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

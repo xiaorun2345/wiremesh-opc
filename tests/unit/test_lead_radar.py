@@ -3,6 +3,7 @@ import asyncio
 
 from app.services.lead_radar import LeadCandidate, score_candidate
 from app.services.lead_enrichment import enrich_to_chinese
+from app.services.model_provider import decrypt_api_key, encrypt_api_key
 
 
 def test_wire_mesh_lead_scores_high_with_complete_specs():
@@ -31,11 +32,16 @@ def test_expired_lead_is_archived_score():
     assert "已过截止日期" in reasons
 
 
-def test_glossary_enrichment_keeps_original_context_without_llm(monkeypatch):
-    monkeypatch.setattr("app.services.lead_enrichment.settings.LLM_API_KEY", "")
+def test_glossary_enrichment_keeps_original_context_without_llm():
     result = asyncio.run(enrich_to_chinese(
         "Supply of anti-climb wire mesh fencing", "galvanized wire mesh installation", "Public Buyer", "UK"
     ))
     assert "丝网" in result["title_zh"]
     assert result["translation_status"] == "GLOSSARY"
     assert "Public Buyer" in result["summary_zh"]
+
+
+def test_model_key_is_not_stored_as_plaintext():
+    ciphertext = encrypt_api_key("sk-test-secret")
+    assert ciphertext != "sk-test-secret"
+    assert decrypt_api_key(ciphertext) == "sk-test-secret"

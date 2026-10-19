@@ -41,6 +41,10 @@ export const opcApi = {
   indexKnowledge: (id: string) => client.post(`/automation/knowledge/${id}/index`),
   searchKnowledge: (q: string) => client.get('/automation/knowledge/search', { params: { q } }),
   audit: () => client.get('/automation/audit'),
+  listModelProviders: () => client.get('/automation/model-providers'),
+  createModelProvider: (data: Record<string, unknown>) => client.post('/automation/model-providers', data),
+  updateModelProvider: (id: string, data: Record<string, unknown>) => client.patch(`/automation/model-providers/${id}`, data),
+  deleteModelProvider: (id: string) => client.delete(`/automation/model-providers/${id}`),
 
   listLeadSources: () => client.get('/automation/lead-sources'),
   installDefaultLeadSources: () => client.post('/automation/lead-sources/install-defaults'),

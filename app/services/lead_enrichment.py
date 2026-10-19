@@ -8,8 +8,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.core.llm.glm_client import call_glm_text, extract_json
-from config.settings import settings
+from app.core.llm.glm_client import extract_json
+from app.services.model_provider import call_model_text
 
 
 GLOSSARY = {
@@ -28,9 +28,9 @@ def glossary_chinese(text: str) -> str:
     return translated
 
 
-async def enrich_to_chinese(title: str, text: str, buyer: str, country: str) -> dict[str, str]:
+async def enrich_to_chinese(title: str, text: str, buyer: str, country: str, model_config: dict | None = None) -> dict[str, str]:
     """Translate and summarize, preferring a configured OpenAI-compatible model."""
-    if settings.LLM_API_KEY:
+    if model_config:
         prompt = (
             "将以下海外丝网采购公告整理为中文。只返回 JSON："
             '{"title_zh":"","summary_zh":""}。summary_zh 包含产品、关键规格、采购方、国家和待确认项，'
@@ -38,7 +38,7 @@ async def enrich_to_chinese(title: str, text: str, buyer: str, country: str) -> 
             f"标题：{title}\n采购方：{buyer}\n国家：{country}\n原文：{text[:6000]}"
         )
         try:
-            parsed = extract_json(await asyncio.to_thread(call_glm_text, prompt))
+            parsed = extract_json(await call_model_text(model_config, prompt))
             if isinstance(parsed, dict) and parsed.get("title_zh"):
                 return {"title_zh": str(parsed["title_zh"])[:500], "summary_zh": str(parsed.get("summary_zh", "")), "translation_status": "LLM"}
         except Exception:

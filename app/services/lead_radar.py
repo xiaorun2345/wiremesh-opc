@@ -290,6 +290,8 @@ async def persist_candidates(db: AsyncSession, source: LeadSource, candidates: l
     duplicates = 0
     high_priority = 0
     config = json.loads(source.config_json or "{}")
+    from app.services.model_provider import get_active_model
+    model_config = await get_active_model(db, source.owner_id, "text")
     for candidate in candidates:
         dedupe_key = hashlib.sha256(f"{source.owner_id}:{candidate.source}:{candidate.external_id}".encode()).hexdigest()
         exists = await db.execute(select(OverseasLead.id).where(OverseasLead.dedupe_key == dedupe_key))
@@ -299,7 +301,7 @@ async def persist_candidates(db: AsyncSession, source: LeadSource, candidates: l
         score, reasons, extracted = score_candidate(candidate, config)
         status = "HIGH_PRIORITY" if score >= 80 else "NEW" if score >= 40 else "ARCHIVED"
         from app.services.lead_enrichment import enrich_to_chinese
-        enrichment = await enrich_to_chinese(candidate.title, candidate.text, candidate.buyer, candidate.country)
+        enrichment = await enrich_to_chinese(candidate.title, candidate.text, candidate.buyer, candidate.country, model_config)
         lead = OverseasLead(
             owner_id=source.owner_id, source_id=source.id, source=candidate.source, external_id=candidate.external_id,
             dedupe_key=dedupe_key, source_url=candidate.source_url, title=candidate.title, buyer=candidate.buyer,

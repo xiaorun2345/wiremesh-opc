@@ -10,6 +10,7 @@ import InquiryManagement from './InquiryManagement.vue'
 import KnowledgeManagement from './KnowledgeManagement.vue'
 import PriceManagement from './PriceManagement.vue'
 import LeadRadar from './LeadRadar.vue'
+import ModelCenter from './ModelCenter.vue'
 
 const props = defineProps<{ module: string }>()
 
@@ -48,6 +49,7 @@ const descriptions: Record<string, { eyebrow: string; title: string; desc: strin
   知识库: { eyebrow: 'KNOWLEDGE BASE', title: '知识库', desc: '管理产品规格、材料价格、工艺标准、质检要求和历史问答。', action: '导入资料' },
   价格规则: { eyebrow: 'PRICING RULES', title: '价格规则', desc: '维护材料、加工、表面处理和包装价格，报价引擎自动读取生效版本。', action: '发布价格' },
   运营数据: { eyebrow: 'BUSINESS ANALYTICS', title: '运营数据', desc: '查看询盘转化、报价效率、产品结构和工厂履约表现。', action: '导出月报' },
+  模型中心: { eyebrow: 'MODEL ROUTING', title: '模型中心', desc: '配置并选择文本、翻译、客服和识图工作流使用的大模型。', action: '添加模型' },
 }
 
 const current = computed(() => descriptions[props.module] || descriptions.图纸识别)
@@ -252,6 +254,8 @@ function confirmSpecs() { ElMessage.success('规格已确认，可以进入报�
       <div class="analytics-kpis"><article><span>本月询盘</span><strong>108</strong><em>↑ 18.7%</em></article><article><span>有效报价</span><strong>36</strong><em>↑ 12.5%</em></article><article><span>成交金额</span><strong>¥ 486,200</strong><em>↑ 22.1%</em></article><article><span>平均响应</span><strong>18m</strong><em>↓ 31.4%</em></article></div>
       <div class="analytics-grid"><article class="module-card chart-card"><div class="card-title"><div><h3>询盘与报价趋势</h3><p>最近 7 天</p></div><span class="legend"><i></i>询盘 <i></i>报价</span></div><div class="bar-chart"><div v-for="item in [{d:'周一',a:64,b:36},{d:'周二',a:82,b:48},{d:'周三',a:58,b:31},{d:'周四',a:91,b:56},{d:'周五',a:76,b:44},{d:'周六',a:48,b:24},{d:'周日',a:70,b:39}]" :key="item.d" class="bar-group"><div><i :style="{height:item.a+'%'}"></i><em :style="{height:item.b+'%'}"></em></div><span>{{ item.d }}</span></div></div></article><article class="module-card product-rank"><div class="card-title"><div><h3>热门产品</h3><p>按询盘数量</p></div></div><div v-for="(item,index) in [{n:'建筑防护网',v:32,p:100},{n:'养殖围网',v:24,p:75},{n:'工业筛网',v:19,p:59},{n:'护栏网',v:17,p:53},{n:'六角网',v:11,p:34}]" :key="item.n" class="rank-row"><b>{{ index+1 }}</b><span>{{ item.n }}<i><em :style="{width:item.p+'%'}"></em></i></span><strong>{{ item.v }}</strong></div></article></div>
     </template>
+
+    <template v-else-if="module === '模型中心'"><ModelCenter /></template>
 
     <el-dialog v-model="quoteDialog" title="新建丝网报价" width="760px" class="quote-dialog">
       <div class="quote-form-grid">

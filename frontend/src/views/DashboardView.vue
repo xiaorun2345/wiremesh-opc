@@ -18,6 +18,7 @@ const menuItems = [
   { label: '合作工厂', icon: 'OfficeBuilding' }, { label: '知识库', icon: 'Collection' },
   { label: '价格规则', icon: 'Money' },
   { label: '运营数据', icon: 'DataLine' },
+  { label: '模型中心', icon: 'Cpu' },
 ]
 
 const metrics = [

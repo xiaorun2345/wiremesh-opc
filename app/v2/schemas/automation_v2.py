@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.opc import AuditLog, CustomerFollowUp, InboundMessage, Inquiry, KnowledgeDocument, LeadSource, Notification, Order, OrderAttachment, OrderEvent, OverseasLead, PriceRule
+from app.models.opc import AuditLog, CustomerFollowUp, InboundMessage, Inquiry, KnowledgeDocument, LeadSource, ModelProviderConfig, Notification, Order, OrderAttachment, OrderEvent, OverseasLead, PriceRule
 from app.models.user import User
 from app.utils.auth import get_current_user
 from app.utils.db import get_db
@@ -69,6 +69,15 @@ class LeadReviewInput(BaseModel):
     note: str = Field(default="", max_length=2000)
 
 
+class ModelProviderInput(BaseModel):
+    provider: str = Field(pattern="^(openai|qwen|deepseek|zhipu|custom)$")
+    purpose: str = Field(default="text", pattern="^(text|vision)$")
+    model: str = Field(min_length=1, max_length=120)
+    base_url: str = Field(min_length=8, max_length=512)
+    api_key: str = Field(default="", max_length=500)
+    enabled: bool = True
+
+
 async def audit(db: AsyncSession, owner_id: str, action: str, entity_type: str, entity_id: str, data: dict | None = None):
     db.add(AuditLog(owner_id=owner_id, action=action, entity_type=entity_type, entity_id=entity_id, data_json=json.dumps(data or {}, ensure_ascii=False)))
 
@@ -121,6 +130,48 @@ async def install_default_lead_sources(user: User = Depends(get_current_user), d
     return {"created": len(created), "source_ids": created}
 
 
+def model_provider_out(item: ModelProviderConfig) -> dict:
+    from app.services.model_provider import mask_api_key
+    return {"id": item.id, "provider": item.provider, "purpose": item.purpose, "model": item.model,
+            "base_url": item.base_url, "api_key_status": mask_api_key(item.api_key_encrypted), "enabled": item.enabled,
+            "updated_at": item.updated_at}
+
+
+@router.get("/model-providers")
+async def list_model_providers(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    rows = await db.execute(select(ModelProviderConfig).where(ModelProviderConfig.owner_id == user.id).order_by(ModelProviderConfig.updated_at.desc()))
+    return [model_provider_out(item) for item in rows.scalars().all()]
+
+
+@router.post("/model-providers", status_code=201)
+async def create_model_provider(body: ModelProviderInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    from app.services.model_provider import encrypt_api_key
+    if not body.api_key: raise HTTPException(400, "请填写 API Key")
+    item = ModelProviderConfig(owner_id=user.id, provider=body.provider, purpose=body.purpose, model=body.model,
+                               base_url=body.base_url.rstrip("/"), api_key_encrypted=encrypt_api_key(body.api_key), enabled=body.enabled)
+    db.add(item); await db.flush(); await audit(db, user.id, "model_provider.create", "model_provider", item.id, {"provider": body.provider, "purpose": body.purpose}); await db.commit()
+    return model_provider_out(item)
+
+
+@router.patch("/model-providers/{config_id}")
+async def update_model_provider(config_id: str, body: ModelProviderInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(ModelProviderConfig).where(ModelProviderConfig.id == config_id, ModelProviderConfig.owner_id == user.id)); item = row.scalar_one_or_none()
+    if not item: raise HTTPException(404, "模型配置不存在")
+    item.provider = body.provider; item.purpose = body.purpose; item.model = body.model; item.base_url = body.base_url.rstrip("/"); item.enabled = body.enabled
+    if body.api_key:
+        from app.services.model_provider import encrypt_api_key
+        item.api_key_encrypted = encrypt_api_key(body.api_key)
+    await audit(db, user.id, "model_provider.update", "model_provider", item.id, {"provider": body.provider, "purpose": body.purpose}); await db.commit()
+    return model_provider_out(item)
+
+
+@router.delete("/model-providers/{config_id}", status_code=204)
+async def delete_model_provider(config_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    row = await db.execute(select(ModelProviderConfig).where(ModelProviderConfig.id == config_id, ModelProviderConfig.owner_id == user.id)); item = row.scalar_one_or_none()
+    if not item: raise HTTPException(404, "模型配置不存在")
+    await db.delete(item); await audit(db, user.id, "model_provider.delete", "model_provider", config_id); await db.commit()
+
+
 @router.patch("/lead-sources/{source_id}")
 async def update_lead_source(source_id: str, body: LeadSourceInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     row = await db.execute(select(LeadSource).where(LeadSource.id == source_id, LeadSource.owner_id == user.id)); item = row.scalar_one_or_none()
@@ -169,7 +220,8 @@ async def enrich_lead(lead_id: str, user: User = Depends(get_current_user), db: 
     row = await db.execute(select(OverseasLead).where(OverseasLead.id == lead_id, OverseasLead.owner_id == user.id)); lead = row.scalar_one_or_none()
     if not lead: raise HTTPException(404, "商机不存在")
     from app.services.lead_enrichment import enrich_to_chinese
-    result = await enrich_to_chinese(lead.title, lead.raw_text, lead.buyer, lead.country)
+    from app.services.model_provider import get_active_model
+    result = await enrich_to_chinese(lead.title, lead.raw_text, lead.buyer, lead.country, await get_active_model(db, user.id, "text"))
     lead.title_zh = result["title_zh"]; lead.summary_zh = result["summary_zh"]; lead.translation_status = result["translation_status"]
     await audit(db, user.id, "lead.enrich", "overseas_lead", lead.id, {"translation_status": lead.translation_status}); await db.commit()
     return lead_out(lead)
