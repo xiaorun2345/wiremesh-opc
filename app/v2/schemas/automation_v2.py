@@ -93,6 +93,27 @@ async def create_lead_source(body: LeadSourceInput, user: User = Depends(get_cur
     return {"id": item.id}
 
 
+@router.post("/lead-sources/install-defaults")
+async def install_default_lead_sources(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Install free, official procurement presets once per workspace."""
+    from app.services.lead_radar import free_default_sources
+
+    created: list[str] = []
+    for preset in free_default_sources():
+        exists = await db.execute(select(LeadSource.id).where(
+            LeadSource.owner_id == user.id, LeadSource.name == preset["name"],
+        ))
+        if exists.scalar_one_or_none():
+            continue
+        item = LeadSource(owner_id=user.id, name=preset["name"], provider=preset["provider"],
+                          enabled=preset["enabled"], config_json=json.dumps(preset["config"], ensure_ascii=False))
+        db.add(item); await db.flush(); created.append(item.id)
+    if created:
+        await audit(db, user.id, "lead_source.install_defaults", "lead_source", ",".join(created), {"count": len(created)})
+    await db.commit()
+    return {"created": len(created), "source_ids": created}
+
+
 @router.patch("/lead-sources/{source_id}")
 async def update_lead_source(source_id: str, body: LeadSourceInput, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     row = await db.execute(select(LeadSource).where(LeadSource.id == source_id, LeadSource.owner_id == user.id)); item = row.scalar_one_or_none()

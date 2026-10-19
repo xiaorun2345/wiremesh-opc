@@ -13,10 +13,13 @@ WireMesh OPC 只采集官方 API、公开 RSS 或明确授权的数据源，不�
 
 丝网默认 TED CPV：`44313100`、`44313000`、`44313200`、`44312000`、`34928200`、`34928310`。
 
-默认启用的数据源：
+新工作区第一次进入“海外商机”时，会自动安装以下免费预设：
 
 1. **TED 欧盟采购（丝网）**：使用公开 Search API，不需要 API Key。系统按 CPV `44313100`（wire-mesh fencing）、`44313000`（metal netting）、`44313200`（wire cloth）、`44312000`（fencing wire）、`34928200`（fences）、`34928310`（safety fencing）采集，同时用 `wire mesh`、`security fencing`、`mining screen` 做相关度评分。
 2. **英国 Contracts Finder（丝网）**：使用公开 OCDS Search 接口 `https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search`，采集后按 `wire mesh`、`welded mesh`、`security fencing`、`metal netting`、`wire cloth` 过滤和评分。
+3. **SAM.gov 美国政府采购（待填免费 Key）**：已预置关键词与美国区域，但默认停用；SAM 的查询与 API Key 都免费，填入 `SAM_GOV_API_KEY` 环境变量后启用，避免无密钥任务反复报错。
+
+数据源页也提供“恢复免费默认源”按钮，可幂等地补齐被删除的预设，不会覆盖人工添加的来源。
 
 示例 TED 配置：
 

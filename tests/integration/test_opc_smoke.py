@@ -60,6 +60,11 @@ def test_opc_end_to_end_smoke():
         assert analytics.json()["customers"] >= 1
         assert analytics.json()["orders"] >= 1
 
+        defaults = client.post("/api/v2/automation/lead-sources/install-defaults", headers=headers)
+        assert defaults.status_code == 200, defaults.text
+        assert defaults.json()["created"] == 3
+        assert client.post("/api/v2/automation/lead-sources/install-defaults", headers=headers).json()["created"] == 0
+
         source = client.post("/api/v2/automation/lead-sources", headers=headers, json={
             "name": "TED Wire Mesh", "provider": "ted", "enabled": False,
             "config": {"cpv_codes": ["44313100"]},
@@ -67,4 +72,6 @@ def test_opc_end_to_end_smoke():
         assert source.status_code == 201, source.text
         sources = client.get("/api/v2/automation/lead-sources", headers=headers)
         assert sources.status_code == 200
-        assert sources.json()[0]["provider"] == "ted"
+        assert len(sources.json()) == 4
+        assert any(item["provider"] == "ted" and item["enabled"] for item in sources.json())
+        assert any(item["provider"] == "sam" and not item["enabled"] for item in sources.json())

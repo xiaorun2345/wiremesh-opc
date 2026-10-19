@@ -34,6 +34,26 @@ DEFAULT_KEYWORDS = [
 DEFAULT_CPV_CODES = ["44313100", "44313000", "44313200", "44312000", "34928200", "34928310"]
 
 
+def free_default_sources() -> list[dict[str, Any]]:
+    """Return no-subscription source presets for a new workspace."""
+    return [
+        {"name": "TED 欧盟采购（丝网）", "provider": "ted", "enabled": True, "config": {
+            "cpv_codes": DEFAULT_CPV_CODES,
+            "keywords": ["wire mesh", "security fencing", "mining screen"],
+            "countries": [], "limit": 50,
+        }},
+        {"name": "英国 Contracts Finder（丝网）", "provider": "contracts_finder", "enabled": True, "config": {
+            "url": "https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search",
+            "keywords": ["wire mesh", "welded mesh", "security fencing", "metal netting", "wire cloth"],
+            "limit": 100,
+        }},
+        {"name": "SAM.gov 美国政府采购（待填免费 Key）", "provider": "sam", "enabled": False, "config": {
+            "api_key_env": "SAM_GOV_API_KEY", "keyword": "wire mesh",
+            "lookback_days": 2, "limit": 100, "countries": ["US"],
+        }},
+    ]
+
+
 @dataclass
 class LeadCandidate:
     source: str

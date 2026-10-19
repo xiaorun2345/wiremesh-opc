@@ -43,6 +43,7 @@ export const opcApi = {
   audit: () => client.get('/automation/audit'),
 
   listLeadSources: () => client.get('/automation/lead-sources'),
+  installDefaultLeadSources: () => client.post('/automation/lead-sources/install-defaults'),
   createLeadSource: (data: Record<string, unknown>) => client.post('/automation/lead-sources', data),
   updateLeadSource: (id: string, data: Record<string, unknown>) => client.patch(`/automation/lead-sources/${id}`, data),
   deleteLeadSource: (id: string) => client.delete(`/automation/lead-sources/${id}`),
