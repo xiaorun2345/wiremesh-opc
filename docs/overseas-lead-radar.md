@@ -13,6 +13,11 @@ WireMesh OPC 只采集官方 API、公开 RSS 或明确授权的数据源，不�
 
 丝网默认 TED CPV：`44313100`、`44313000`、`44313200`、`44312000`、`34928200`、`34928310`。
 
+默认启用的数据源：
+
+1. **TED 欧盟采购（丝网）**：使用公开 Search API，不需要 API Key。系统按 CPV `44313100`（wire-mesh fencing）、`44313000`（metal netting）、`44313200`（wire cloth）、`44312000`（fencing wire）、`34928200`（fences）、`34928310`（safety fencing）采集，同时用 `wire mesh`、`security fencing`、`mining screen` 做相关度评分。
+2. **英国 Contracts Finder（丝网）**：使用公开 OCDS Search 接口 `https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search`，采集后按 `wire mesh`、`welded mesh`、`security fencing`、`metal netting`、`wire cloth` 过滤和评分。
+
 示例 TED 配置：
 
 ```json

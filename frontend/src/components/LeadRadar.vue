@@ -10,14 +10,16 @@ const useMock = import.meta.env.VITE_USE_MOCK === 'true'
 const tab = ref<'leads'|'sources'|'notifications'>('leads')
 const loading = ref(false)
 const sourceDialog = ref(false)
-const sourceForm = reactive({ name:'TED 欧盟采购', provider:'ted', enabled:true, configText:'{"cpv_codes":["44313100","44313000","44313200","44312000","34928200","34928310"],"countries":[]}' })
+const tedConfig = { cpv_codes:['44313100','44313000','44313200','44312000','34928200','34928310'], keywords:['wire mesh','security fencing','mining screen'], countries:[], limit:50 }
+const ukConfig = { url:'https://www.contractsfinder.service.gov.uk/Published/Notices/OCDS/Search', keywords:['wire mesh','welded mesh','security fencing','metal netting','wire cloth'], limit:100 }
+const sourceForm = reactive({ name:'TED 欧盟采购', provider:'ted', enabled:true, configText:JSON.stringify(tedConfig, null, 2) })
 const sources = ref<Source[]>([
-  { id:'s1',name:'TED 欧盟采购',provider:'ted',enabled:true,config:{ cpv_codes:['44313100','44313000'] },last_status:'NEVER',last_error:'' },
-  { id:'s2',name:'SAM.gov 美国政府采购',provider:'sam',enabled:false,config:{ keyword:'wire mesh' },last_status:'NEVER',last_error:'' },
+  { id:'s1',name:'TED 欧盟采购（丝网）',provider:'ted',enabled:true,config:tedConfig,last_status:'READY',last_error:'' },
+  { id:'s2',name:'英国 Contracts Finder（丝网）',provider:'contracts_finder',enabled:true,config:ukConfig,last_status:'READY',last_error:'' },
 ])
 const leads = ref<Lead[]>([
   {id:'l1',source:'ted',title:'Supply of anti-climb wire-mesh fencing',buyer:'Detention Service',country:'Malta',source_url:'https://ted.europa.eu/',deadline_at:'2026-11-06',score:89,status:'HIGH_PRIORITY',score_reasons:['匹配关键词：wire-mesh fencing、anti-climb','规格完整度：5/7','官方采购来源'],extracted:{spec:{product_type:'fence_mesh',material:'galvanized_steel',surface_treatment:'hot_dip_galvanized'}},created_at:'刚刚'},
-  {id:'l2',source:'sam',title:'Security fencing and installation materials',buyer:'US Government Office',country:'US',source_url:'https://sam.gov/',deadline_at:'2026-11-12',score:72,status:'NEW',score_reasons:['匹配关键词：security fencing','公告含预算','官方采购来源'],extracted:{spec:{product_type:'fence_mesh'}},created_at:'12分钟前'},
+  {id:'l2',source:'contracts_finder',title:'Security fencing and installation materials',buyer:'UK public sector buyer',country:'UK',source_url:'https://www.contractsfinder.service.gov.uk/',deadline_at:'2026-11-12',score:72,status:'NEW',score_reasons:['匹配关键词：security fencing','公告含预算','官方采购来源'],extracted:{spec:{product_type:'fence_mesh'}},created_at:'12分钟前'},
   {id:'l3',source:'rss',title:'Mining screen mesh procurement notice',buyer:'Mining Operator',country:'Australia',source_url:'',deadline_at:'2026-10-29',score:57,status:'NEW',score_reasons:['匹配关键词：mining screen','距截止日充足'],extracted:{spec:{product_type:'screen_mesh'}},created_at:'1小时前'},
 ])
 const notifications = ref<Notice[]>([
@@ -41,7 +43,7 @@ async function load() {
   } catch { ElMessage.warning('海外商机服务暂不可用，已展示本地示例') }
   finally { loading.value = false }
 }
-function openCreateSource() { Object.assign(sourceForm,{name:'TED 欧盟采购',provider:'ted',enabled:true,configText:'{"cpv_codes":["44313100","44313000","44313200"],"countries":[]}' }); sourceDialog.value=true }
+function openCreateSource() { Object.assign(sourceForm,{name:'TED 欧盟采购（丝网）',provider:'ted',enabled:true,configText:JSON.stringify(tedConfig, null, 2) }); sourceDialog.value=true }
 async function saveSource() {
   let config:Record<string,unknown>
   try { config = JSON.parse(sourceForm.configText || '{}') } catch { return ElMessage.error('数据源配置 JSON 格式错误') }
