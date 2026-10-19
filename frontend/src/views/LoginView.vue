@@ -51,6 +51,14 @@ async function submit() {
         <el-tab-pane label="注册" name="register" />
       </el-tabs>
 
+      <el-alert
+        v-if="mode === 'login'"
+        title="首次使用本地部署，请先切换到“注册”创建账号。"
+        type="info"
+        :closable="false"
+        class="first-use-tip"
+      />
+
       <el-form @submit.prevent="submit" class="form">
         <el-form-item>
           <el-input
@@ -124,5 +132,6 @@ async function submit() {
   font-size: 13px;
 }
 .tabs { margin-bottom: 20px; }
+.first-use-tip { margin: -8px 0 16px; }
 .form .el-form-item { margin-bottom: 16px; }
 </style>
